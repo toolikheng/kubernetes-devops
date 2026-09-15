@@ -1,0 +1,92 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: devops-app-backup
+  namespace: devops
+  labels:
+    app: devops-app
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: devops-app
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: restic/restic:latest
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Starting backup at $(date)"
+
+              # Initialize restic repo if needed
+              restic snapshots > /dev/null 2>&1 || restic init
+
+              # Backup the data
+              restic backup /app \
+                --tag "devops-app-backup" \
+                --tag "$(date +%Y-%m-%d)" \
+                --exclude '*.pyc' \
+                --exclude '__pycache__' \
+                --exclude '.pytest_cache'
+
+              # Check integrity
+              restic check
+
+              # Cleanup old snapshots
+              restic forget \
+                --keep-daily 7 \
+                --keep-weekly 4 \
+                --keep-monthly 12 \
+                --prune
+
+              echo "Backup completed at $(date)"
+
+            env:
+            - name: RESTIC_REPOSITORY
+              value: "/mnt/backups/restic-repo"
+            - name: RESTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backup-credentials
+                  key: password
+
+            volumeMounts:
+            - name: app-data
+              mountPath: /app
+              readOnly: true
+            - name: backup-repo
+              mountPath: /mnt/backups
+
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+          volumes:
+          - name: app-data
+            persistentVolumeClaim:
+              claimName: devops-app-data
+          - name: backup-repo
+            emptyDir: {}
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-credentials
+  namespace: devops
+type: Opaque
+stringData:
+  password: "devops-backup-password"
