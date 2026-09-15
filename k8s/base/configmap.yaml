@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devops-app-config
+  namespace: devops
+  labels:
+    app: devops-app
+data:
+  app_name: "DevOps Platform API"
+  database_url: "sqlite:////app/app.db"
