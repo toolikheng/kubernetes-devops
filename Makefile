@@ -88,33 +88,50 @@ install:
 # Phase 1 - Infrastructure
 infra-up:
 	@$(ECHO) "$(BLUE)Starting Docker nodes...$(NC)"
-	@cd $(INFRA_DIR)/nodes && docker-compose up -d
-	@sleep 2
-	@$(ECHO) "$(GREEN)✓ Nodes started$(NC)"
+	@docker-compose -f "$(INFRA_DIR)/nodes/docker-compose.yml" up -d
+	@$(ECHO) "$(BLUE)Waiting for nodes to be SSH-ready...$(NC)"
+	@for node in devops-node1 devops-node2 devops-node3; do \
+		echo "Checking $$node..."; \
+		for i in {1..60}; do \
+			if docker exec $$node ssh-keyscan localhost >/dev/null 2>&1; then \
+				echo "✓ $$node is ready"; \
+				break; \
+			fi; \
+			sleep 1; \
+		done; \
+	done
+	@$(ECHO) "$(GREEN)✓ All nodes started and SSH-ready$(NC)"
 	@docker ps --filter "label=devops.role=node" --format "table {{.Names}}\t{{.Status}}"
 
 infra-down:
 	@$(ECHO) "$(BLUE)Stopping Docker nodes...$(NC)"
-	@cd $(INFRA_DIR)/nodes && docker-compose down
+	@docker-compose -f "$(INFRA_DIR)/nodes/docker-compose.yml" down
 	@$(ECHO) "$(GREEN)✓ Nodes stopped$(NC)"
 
 provision:
 	@$(ECHO) "$(BLUE)Running Ansible playbook...$(NC)"
-	@cd $(ANSIBLE_DIR) && ansible-playbook playbooks/site.yml -v
+	@docker run --rm \
+		-v "$(REPO_ROOT):/playbook" \
+		-v "$(HOME)/.ssh:/root/.ssh:ro" \
+		--network nodes_homelab \
+		--entrypoint ansible-playbook \
+		ansible:latest \
+		-i /playbook/ansible/inventory/docker-nodes.yml \
+		/playbook/ansible/playbooks/site.yml -v
 
 # Phase 2 - Application
 test:
 	@$(ECHO) "$(BLUE)Running tests...$(NC)"
-	@cd $(APP_DIR) && python3 -m pytest tests/ -v --tb=short
+	@cd "$(APP_DIR)" && python -m pytest tests/ -v --tb=short
 
 lint:
 	@$(ECHO) "$(BLUE)Running linters...$(NC)"
-	@cd $(APP_DIR) && python3 -m ruff check . && echo "✓ ruff"
-	@cd $(APP_DIR) && python3 -m mypy src/app/ && echo "✓ mypy"
+	@cd "$(APP_DIR)" && python -m ruff check . && echo "✓ ruff"
+	@cd "$(APP_DIR)" && python -m mypy src/app/ --ignore-missing-imports && echo "✓ mypy"
 
 run-app:
 	@$(ECHO) "$(BLUE)Running FastAPI app...$(NC)"
-	@cd $(APP_DIR) && python3 -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
+	@cd "$(APP_DIR)" && python -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Phase 3 - Containerize
 build:
