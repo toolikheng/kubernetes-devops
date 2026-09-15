@@ -1,0 +1,58 @@
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+    serviceMonitorSelectorNilUsesHelmValues: false
+    additionalScrapeConfigs:
+      - job_name: 'docker-nodes'
+        static_configs:
+          - targets:
+              - 'localhost:9100'
+            labels:
+              instance: 'devops-node1'
+          - targets:
+              - 'localhost:9101'
+            labels:
+              instance: 'devops-node2'
+          - targets:
+              - 'localhost:9102'
+            labels:
+              instance: 'devops-node3'
+
+grafana:
+  adminPassword: admin
+  persistence:
+    enabled: true
+    size: 1Gi
+
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus:9090
+          isDefault: true
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+
+prometheus-node-exporter:
+  hostNetwork: true
+
+kubeStateMetrics:
+  enabled: true

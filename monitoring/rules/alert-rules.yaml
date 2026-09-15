@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: devops-app-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: devops-app
+    interval: 30s
+    rules:
+    - alert: AppDown
+      expr: up{job="kubernetes-pods", namespace="devops"} == 0
+      for: 1m
+      annotations:
+        summary: "DevOps app is down"
+        description: "The devops-app pod has been down for 1 minute"
+      labels:
+        severity: critical
+
+    - alert: HighErrorRate
+      expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+      for: 2m
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is {{ $value | humanizePercentage }} over last 5 minutes"
+      labels:
+        severity: warning
+
+    - alert: HighLatency
+      expr: histogram_quantile(0.95, http_request_duration_seconds_bucket) > 0.5
+      for: 3m
+      annotations:
+        summary: "High request latency"
+        description: "p95 latency is {{ $value | humanizeDuration }}"
+      labels:
+        severity: warning
+
+    - alert: NodeExporterDown
+      expr: up{job="docker-nodes"} == 0
+      for: 1m
+      annotations:
+        summary: "Node exporter is down"
+        description: "Node {{ $labels.instance }} exporter is unreachable"
+      labels:
+        severity: warning
