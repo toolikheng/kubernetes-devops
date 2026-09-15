@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create virtual environment and install dependencies
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -e .
+RUN pip install --no-cache-dir --upgrade pip==24.0 setuptools==69.0.0 wheel==0.42.0 && \
+    pip install --no-cache-dir -e .
 
 # Runtime stage: minimal production image
 FROM python:3.11-slim
