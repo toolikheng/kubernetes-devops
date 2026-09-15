@@ -1,0 +1,13 @@
+---
+- name: Provision homelab infrastructure
+  hosts: homelab
+  become: no
+  gather_facts: yes
+
+  roles:
+    - role: common
+      tags:
+        - common
+    - role: node_exporter
+      tags:
+        - monitoring

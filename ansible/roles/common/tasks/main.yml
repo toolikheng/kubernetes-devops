@@ -1,0 +1,51 @@
+---
+- name: Update package cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install base packages
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - htop
+      - net-tools
+      - jq
+      - tmux
+    state: present
+
+- name: Set timezone to UTC
+  timezone:
+    name: UTC
+
+- name: Configure SSH hardening
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  with_items:
+    - regexp: "^PermitRootLogin"
+      line: "PermitRootLogin without-password"
+    - regexp: "^PubkeyAuthentication"
+      line: "PubkeyAuthentication yes"
+    - regexp: "^PasswordAuthentication"
+      line: "PasswordAuthentication no"
+  notify: restart sshd
+
+- name: Create motd
+  copy:
+    dest: /etc/motd
+    content: |
+      ╔═══════════════════════════════════════╗
+      ║   DevOps Platform - Homelab Node      ║
+      ║   Managed by Ansible                  ║
+      ╚═══════════════════════════════════════╝
+
+- name: Ensure sshd is running
+  service:
+    name: ssh
+    state: started
+    enabled: yes
