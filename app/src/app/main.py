@@ -132,8 +132,8 @@ async def update_item(item_id: int, item: ItemCreate) -> Item:
         if not db_item:
             http_requests_total.labels(method="PUT", endpoint="/items/{item_id}", status=404).inc()
             raise HTTPException(status_code=404, detail="Item not found")
-        db_item.title = item.title  # type: ignore[assignment]
-        db_item.description = item.description  # type: ignore[assignment]
+        db_item.title = item.title
+        db_item.description = item.description
         db.commit()
         db.refresh(db_item)
         http_requests_total.labels(method="PUT", endpoint="/items/{item_id}", status=200).inc()
