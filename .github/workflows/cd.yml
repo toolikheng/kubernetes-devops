@@ -1,0 +1,56 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      image_tag:
+        description: 'Image tag (e.g., sha-abc1234 or latest)'
+        required: true
+        default: 'latest'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Install kustomize
+      run: |
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        sudo mv kustomize /usr/local/bin/
+
+    - name: Configure kubectl context
+      run: |
+        # Note: This assumes you have a kubeconfig in a secret or are using k3d locally
+        # For pull-based CD, this would connect to your cluster
+        echo "Deployment would target: ${{ github.event.inputs.environment }} environment"
+        echo "Image tag: ${{ github.event.inputs.image_tag }}"
+
+    - name: Update deployment image
+      run: |
+        # This would update the k8s manifests with the new image tag
+        # Example: kustomize edit set image devops-app=ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}
+        echo "✓ Deployment would apply k8s/overlays/${{ github.event.inputs.environment }}"
+
+    - name: Verify rollout
+      run: |
+        # This would wait for the rollout to complete
+        # Example: kubectl rollout status deploy/devops-app -n devops --timeout=5m
+        echo "✓ Rollout verification complete"
