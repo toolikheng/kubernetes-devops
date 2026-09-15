@@ -1,26 +1,31 @@
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, create_engine
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
 from app.metrics import get_metrics_content, http_requests_total
 
+
 # Database setup
 engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class ItemDB(Base):
     __tablename__ = "items"
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
-    description = Column(String)
+    id: Any = Column(Integer, primary_key=True, index=True)
+    title: Any = Column(String, index=True)
+    description: Any = Column(String)
 
 
 Base.metadata.create_all(bind=engine)
