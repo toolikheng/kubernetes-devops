@@ -1,5 +1,6 @@
 name: CD
 
+# Manual deployment workflow for dev/prod environments
 on:
   workflow_dispatch:
     inputs:
