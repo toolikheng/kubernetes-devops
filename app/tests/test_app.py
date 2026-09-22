@@ -28,10 +28,15 @@ def test_readyz(client: TestClient) -> None:
 
 
 def test_metrics_endpoint(client: TestClient) -> None:
+    # Make a request to generate metrics
+    client.get("/")
+
     response = client.get("/metrics")
     assert response.status_code == 200
     assert b"http_requests_total" in response.content
     assert b"http_request_duration_seconds" in response.content
+    # Verify histogram has recorded duration (bucket values present)
+    assert b"_bucket" in response.content or b"_sum" in response.content
 
 
 def test_create_item(client: TestClient) -> None:

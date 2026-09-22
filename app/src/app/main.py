@@ -1,15 +1,16 @@
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager
+from time import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
-from app.metrics import get_metrics_content, http_requests_total
+from app.metrics import get_metrics_content, http_request_duration_seconds, http_requests_total
 
 
 # Database setup
@@ -39,6 +40,17 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def check_database_connection() -> bool:
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+    finally:
+        db.close()
+
+
 # Pydantic models
 class ItemCreate(BaseModel):
     title: str
@@ -60,6 +72,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 
+@app.middleware("http")
+async def measure_request_duration(request: Request, call_next: Any) -> Response:
+    start_time = time()
+    response = await call_next(request)
+    duration = time() - start_time
+
+    method = request.method
+    endpoint = request.url.path
+
+    http_request_duration_seconds.labels(method=method, endpoint=endpoint).observe(duration)
+
+    return response
+
+
 @app.get("/")
 async def root() -> dict[str, str]:
     http_requests_total.labels(method="GET", endpoint="/", status=200).inc()
@@ -74,7 +100,13 @@ async def healthz() -> dict[str, str]:
 
 @app.get("/readyz")
 async def readyz() -> dict[str, object]:
-    http_requests_total.labels(method="GET", endpoint="/readyz", status=200).inc()
+    db_connected = check_database_connection()
+    status_code = 200 if db_connected else 503
+    http_requests_total.labels(method="GET", endpoint="/readyz", status=status_code).inc()
+
+    if not db_connected:
+        raise HTTPException(status_code=503, detail="Database not available")
+
     return {"status": "ready", "dependencies": {"database": "connected"}}
 
 
