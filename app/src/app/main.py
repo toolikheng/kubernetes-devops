@@ -1,7 +1,6 @@
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from contextlib import asynccontextmanager
 from time import time
-from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, Response
@@ -11,7 +10,6 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
 from app.metrics import get_metrics_content, http_request_duration_seconds, http_requests_total
-
 
 # Database setup
 engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
@@ -24,9 +22,9 @@ class Base(DeclarativeBase):
 
 class ItemDB(Base):
     __tablename__ = "items"
-    id: Any = Column(Integer, primary_key=True, index=True)
-    title: Any = Column(String, index=True)
-    description: Any = Column(String)
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    description = Column(String)
 
 
 Base.metadata.create_all(bind=engine)
@@ -73,9 +71,9 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 
 @app.middleware("http")
-async def measure_request_duration(request: Request, call_next: Any) -> Response:
+async def measure_request_duration(request: Request, call_next: Callable[..., Awaitable[Response]]) -> Response:
     start_time = time()
-    response = await call_next(request)
+    response: Response = await call_next(request)
     duration = time() - start_time
 
     method = request.method
@@ -164,8 +162,8 @@ async def update_item(item_id: int, item: ItemCreate) -> Item:
         if not db_item:
             http_requests_total.labels(method="PUT", endpoint="/items/{item_id}", status=404).inc()
             raise HTTPException(status_code=404, detail="Item not found")
-        db_item.title = item.title
-        db_item.description = item.description
+        db_item.title = item.title  # type: ignore
+        db_item.description = item.description  # type: ignore
         db.commit()
         db.refresh(db_item)
         http_requests_total.labels(method="PUT", endpoint="/items/{item_id}", status=200).inc()
